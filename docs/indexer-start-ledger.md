@@ -4,6 +4,8 @@
 
 The `INDEXER_START_LEDGER` environment variable determines the earliest ledger sequence the indexer will scan for contract events when starting from a fresh database with no saved cursor position.
 
+The `GET /status` response reports this configured value as `indexer.startLedger`. A value of `0` means the indexer starts from the chain's current head when there is no saved cursor; the reported value does not replace `indexer.lastLedger`, which is the current indexed position.
+
 When the indexer starts:
 1. If a saved cursor exists in the database, the indexer resumes from that cursor (the start ledger is ignored).
 2. Otherwise, if `INDEXER_START_LEDGER` is set to a positive integer, the indexer begins scanning from that ledger sequence.
