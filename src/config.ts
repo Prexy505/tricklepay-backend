@@ -60,6 +60,9 @@ export const DEFAULT_MAX_BACKOFF_MS = 60000;
 // that a normal catch-up drains in one tick.
 export const DEFAULT_MAX_PAGES_PER_TICK = 1000;
 
+// Summary aggregates are expensive and commonly polled, so cache them briefly.
+export const DEFAULT_STREAM_SUMMARY_CACHE_TTL_MS = 2_000;
+
 function positiveInteger(name: string, fallback: number, min: number): number {
   const raw = process.env[name];
   if (!raw || raw.trim() === "") return fallback;
@@ -123,6 +126,7 @@ export interface Config {
   readonly startLedger: number;
   readonly maxBackoffMs: number;
   readonly maxPagesPerTick: number;
+  readonly summaryCacheTtlMs: number;
   readonly bodyLimit: number;
   readonly queryStringLimit: number;
   readonly trustedProxies: readonly string[];
@@ -160,6 +164,10 @@ export function loadConfig(): Config {
       "INDEXER_MAX_PAGES_PER_TICK",
       DEFAULT_MAX_PAGES_PER_TICK,
       1,
+    ),
+    summaryCacheTtlMs: integer(
+      "STREAM_SUMMARY_CACHE_TTL_MS",
+      DEFAULT_STREAM_SUMMARY_CACHE_TTL_MS,
     ),
     bodyLimit: integer("BODY_LIMIT", 1048576), // 1MB default
     queryStringLimit: integer("QUERY_STRING_LIMIT", 2048), // 2KB default

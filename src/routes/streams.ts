@@ -34,6 +34,7 @@ import {
 } from "../schema.js";
 import { listIndexedEvents } from "../repositories/indexed-events.js";
 import { nowSeconds } from "../lib/time.js";
+import { DEFAULT_STREAM_SUMMARY_CACHE_TTL_MS } from "../config.js";
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 50;
@@ -97,6 +98,13 @@ function normalizeAddress(raw: string): string | null {
 
 const SUMMARY_STATUSES = ["pending", "streaming", "completed", "cancelled"] as const;
 
+type SummaryEntry = { count: number; totalAmount: string; withdrawn: string };
+type SummaryPayload = Record<StreamStatus, SummaryEntry>;
+
+export type StreamRoutesOptions = {
+  summaryCacheTtlMs?: number;
+};
+
 // The database-side predicate for each lifecycle status, mirroring `statusOf`:
 // cancelled wins first, then the start/end time windows against the clock.
 function statusWhere(status: StreamStatus, now: bigint): Prisma.StreamWhereInput {
@@ -112,7 +120,13 @@ function statusWhere(status: StreamStatus, now: bigint): Prisma.StreamWhereInput
   }
 }
 
-export async function streamRoutes(app: FastifyInstance): Promise<void> {
+export async function streamRoutes(
+  app: FastifyInstance,
+  opts: StreamRoutesOptions = {},
+): Promise<void> {
+  const summaryCacheTtlMs = opts.summaryCacheTtlMs ?? DEFAULT_STREAM_SUMMARY_CACHE_TTL_MS;
+  let cachedSummary: { payload: SummaryPayload; createdAt: number } | null = null;
+
   // Ensure the shared schemas are available whether this plugin is registered
   // on a full server (which calls addSchema centrally) or a bare Fastify
   // instance in tests. Fastify deduplicates by $id, so calling addSchema when
@@ -292,6 +306,16 @@ export async function streamRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (_request, reply) => {
+      const requestTimeMs = Date.now();
+      if (summaryCacheTtlMs > 0 && cachedSummary !== null) {
+        const ageMs = requestTimeMs - cachedSummary.createdAt;
+        if (ageMs >= 0 && ageMs < summaryCacheTtlMs) {
+          const maxAgeSeconds = Math.floor((summaryCacheTtlMs - ageMs) / 1000);
+          reply.header("Cache-Control", `public, max-age=${maxAgeSeconds}`);
+          return cachedSummary.payload;
+        }
+      }
+
       const now = nowSeconds();
       const entries = await Promise.all(
         SUMMARY_STATUSES.map(async (status) => {
@@ -307,8 +331,14 @@ export async function streamRoutes(app: FastifyInstance): Promise<void> {
         }),
       );
 
-      reply.header("Cache-Control", "public, max-age=30");
-      return Object.fromEntries(entries);
+      const payload = Object.fromEntries(entries) as SummaryPayload;
+      const createdAt = Date.now();
+      if (summaryCacheTtlMs > 0) cachedSummary = { payload, createdAt };
+      reply.header(
+        "Cache-Control",
+        `public, max-age=${Math.floor(summaryCacheTtlMs / 1000)}`,
+      );
+      return payload;
     },
   );
 
