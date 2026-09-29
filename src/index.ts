@@ -25,6 +25,13 @@ async function main(): Promise<void> {
   const rpcServer = createRpcServer(config);
   await verifyRpcEndpoint(rpcServer, config.rpcUrl);
 
+  const chainHead = await rpcServer.getLatestLedger();
+  if (config.startLedger > chainHead) {
+    throw new Error(
+      `start ledger ${config.startLedger} is beyond the chain head ${chainHead}; no events will ever be indexed. Set START_LEGGER to a value at or below the current chain head.`,
+    );
+  }
+
   const app = await buildServer(config);
   await app.register(rootRoutes(config));
   await app.register(streamRoutes);
