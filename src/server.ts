@@ -20,7 +20,7 @@ import { checkHealth } from "./db.js";
 
 import { logger } from "./logger.js";
 
-import { httpRequestDuration, httpRequestsTotal } from "./metrics.js";
+import { registerMetricsPlugin } from "./metrics-plugin.js";
 
 import { isTrustedProxyAddress, parseTrustedProxies } from "./proxy.js";
 
@@ -129,16 +129,9 @@ export async function buildServer(config?: Partial<Config>): Promise<FastifyInst
     }
   });
 
-  // Record every response against the Prometheus counters.
-  app.addHook("onResponse", async (request, reply) => {
-    const labels = {
-      method: request.method,
-      route: request.routeOptions?.url ?? "unknown",
-      status: String(reply.statusCode),
-    };
-    httpRequestsTotal.inc(labels);
-    httpRequestDuration.observe(labels, reply.elapsedTime);
-  });
+  // Record every response against the Prometheus counters and histograms.
+  await registerMetricsPlugin(app);
+
 
   // Echo the request id on every response so clients can quote it back. Set
   // before routing, so even requests that fail early carry the header.
