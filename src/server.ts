@@ -18,6 +18,8 @@ import type { Config } from "./config.js";
 
 import { checkHealth } from "./db.js";
 
+import { errorCodeForStatus, redactErrorMessage } from "./error-redaction.js";
+
 import { logger } from "./logger.js";
 
 import { registerMetricsPlugin } from "./metrics-plugin.js";
@@ -41,49 +43,9 @@ import {
 
 import { serviceVersion } from "./version.js";
 
-// Request id forwarding/validation lives in `./request-id.ts` so the rules are
-// testable on their own. `genReqId` below uses it to derive the per-request id.
 
-// ---------------------------------------------------------------------------
-// Error redaction (#74).
-//
-// Raw RPC or database errors can carry connection strings, SQL fragments, or
-// stack traces that must never reach a client. Outgoing messages are stripped
-// of credential-bearing URLs and collapsed to their first line; the original
-// error is preserved in the structured request log together with the request
-// id for diagnosis.
-// ---------------------------------------------------------------------------
-
-/** Matches URLs with an authority that can embed credentials, e.g. postgres://user:pass@host/db */
-const CREDENTIAL_URL_PATTERN = /[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s/@]*:[^\s/@]*@[^\s]*/g;
-
-export function redactErrorMessage(message: string): string {
-  // Keep only the first line so stack traces and multi-line driver errors are
-  // never echoed back to clients.
-  const firstLine = message.split("\n")[0].trim();
-  return firstLine.replace(CREDENTIAL_URL_PATTERN, "[redacted]");
-}
-
-// ---------------------------------------------------------------------------
-// Structured error codes (#73).
-//
-// Every API failure carries a stable, machine-readable `code` alongside the
-// existing message and status, so clients can branch on the category without
-// parsing human-readable text.
-// ---------------------------------------------------------------------------
-
-export type ApiErrorCode =
-  | "VALIDATION_ERROR"
-  | "NOT_FOUND"
-  | "REQUEST_ERROR"
-  | "INTERNAL_SERVER_ERROR";
-
-export function errorCodeForStatus(statusCode: number): ApiErrorCode {
-  if (statusCode === 400) return "VALIDATION_ERROR";
-  if (statusCode === 404) return "NOT_FOUND";
-  if (statusCode >= 500) return "INTERNAL_SERVER_ERROR";
-  return "REQUEST_ERROR";
-}
+// Error redaction and structured error codes live in `./error-redaction.ts`
+// so they are testable independently of the server wiring.
 
 // Builds the Fastify instance with the shared logger, CORS, the OpenAPI
 // plugin, and the routes that do not depend on external services. Route groups
