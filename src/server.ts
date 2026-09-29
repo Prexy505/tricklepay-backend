@@ -24,6 +24,8 @@ import { httpRequestDuration, httpRequestsTotal } from "./metrics.js";
 
 import { isTrustedProxyAddress, parseTrustedProxies } from "./proxy.js";
 
+import { parseQueryString } from "./query-string-parser.js";
+
 import { REQUEST_ID_HEADER, sanitizeRequestId } from "./request-id.js";
 
 import { getIndexerPosition } from "./repositories/indexer-state.js";
@@ -112,14 +114,7 @@ export async function buildServer(config?: Partial<Config>): Promise<FastifyInst
     // logger, so it lands in every structured request log line as `reqId`.
     genReqId: (req) =>
       sanitizeRequestId(req.headers[REQUEST_ID_HEADER]) ?? randomUUID(),
-    querystringParser: (str: string) => {
-      const params = new URLSearchParams(str);
-      const result: Record<string, string> = {};
-      params.forEach((value, key) => {
-        result[key] = value;
-      });
-      return result;
-    },
+    querystringParser: parseQueryString,
   });
 
   app.addHook("onRequest", async (request, reply) => {
