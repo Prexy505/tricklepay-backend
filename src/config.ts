@@ -12,7 +12,7 @@ try {
   // No .env file found; rely on the ambient environment.
 }
 
-const NETWORK_PASSPHRASES: Record<string, string> = {
+const NETWORK_PASSTHRASES: Record<string, string> = {
   testnet: "Test SDF Network ; September 2015",
   mainnet: "Public Global Stellar Network ; September 2015",
 };
