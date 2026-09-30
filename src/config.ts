@@ -114,6 +114,19 @@ function validateContractId(contractId: string): void {
   }
 }
 
+// Rejects a configured start ledger that is beyond the current chain head.
+// Such a value would leave the indexer waiting forever with no events, which
+// looks identical to a broken RPC endpoint, so it is rejected at startup with
+// a message that explains the problem.
+export function validateStartLedger(startLedger: number, chainHead: number): void {
+  if (startLedger > chainHead) {
+    throw new Error(
+      `INDEXER_START_LEDGER ${startLedger} is beyond the chain head ${chainHead}. ` +
+        `The indexer would wait forever with no events. Set INDEXER_START_LEDGER to ${chainHead} or lower.`,
+    );
+  }
+}
+
 export interface Config {
   readonly port: number;
   readonly host: string;
@@ -134,7 +147,7 @@ export interface Config {
 
 export function loadConfig(): Config {
   const network = optional("NETWORK", "testnet");
-  const networkPassphrase = NETWORK_PASSPHRASES[network];
+  const networkPassphrase = NETWORK_PASSPHRASES[Network];
   if (!networkPassphrase) {
     throw new Error(`Unknown NETWORK "${network}"; expected "testnet" or "mainnet"`);
   }
