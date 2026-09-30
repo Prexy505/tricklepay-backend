@@ -81,9 +81,14 @@ export class Poller {
     this.running = true;
     let position = await this.resolveStart();
 
+    await this.runLoop(position);
+  }
+
+  /** Owns scheduling and failure backoff; one tick is deliberately separate. */
+  private async runLoop(position: Position): Promise<void> {
     while (this.running) {
       try {
-        position = await this.tick(position);
+        position = await this.tick(position, () => this.running);
         // A successful iteration breaks the streak — back off returns to the
         // normal interval so a recovered RPC is not punished for past failures.
         this.consecutiveFailures = 0;
@@ -149,7 +154,8 @@ export class Poller {
   //
   // The cursor is saved after every page, so a backlog interrupted part way
   // through resumes where it stopped rather than starting the tick over.
-  private async tick(position: Position): Promise<Position> {
+  /** Execute one poll tick. This can be called directly by tests or tooling. */
+  async tick(position: Position, shouldContinue: () => boolean = () => true): Promise<Position> {
     let current = position;
     let pages = 0;
     let events = 0;
@@ -157,7 +163,7 @@ export class Poller {
     // `running` is checked between pages as well, so a stop during a long
     // backfill takes effect at the next page boundary instead of at the end of
     // the whole backlog.
-    while (this.running) {
+    while (shouldContinue()) {
       let page: EventPage;
       try {
         page = await getContractEvents(this.server, this.config.contractId, current);

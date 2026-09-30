@@ -8,7 +8,8 @@ import { StrKey } from "@stellar/stellar-sdk";
 import type { FastifyInstance } from "fastify";
 
 import { sendError, bigIntToStringNullable } from "../lib/response.js";
-import { toView } from "../lib/stream-view.js";
+import { parsePagination } from "../lib/pagination.js";
+import { mapStreamResponse } from "../lib/stream-view.js";
 
 import {
   aggregateStreams,
@@ -35,25 +36,11 @@ import {
 import { listIndexedEvents } from "../repositories/indexed-events.js";
 import { nowSeconds } from "../lib/time.js";
 
-const MAX_LIMIT = 100;
-const DEFAULT_LIMIT = 50;
 // Above this offset a scan gets expensive enough that callers should page
 // through results in order or narrow them with filters instead.
 const MAX_OFFSET = 10000;
 
 type StreamStatus = "pending" | "streaming" | "completed" | "cancelled";
-
-function parseLimit(raw: string | undefined): number {
-  const value = raw ? Number(raw) : DEFAULT_LIMIT;
-  if (!Number.isFinite(value) || value <= 0) return DEFAULT_LIMIT;
-  return Math.min(Math.floor(value), MAX_LIMIT);
-}
-
-function parseOffset(raw: string | undefined): number {
-  const value = raw ? Number(raw) : 0;
-  if (!Number.isFinite(value) || value < 0) return 0;
-  return Math.floor(value);
-}
 
 function parseIncludeTotal(raw: string | undefined): boolean {
   return raw === "true";
@@ -166,7 +153,7 @@ export async function streamRoutes(app: FastifyInstance): Promise<void> {
             },
             limit: {
               type: "string",
-              description: `Maximum results to return. Capped at ${MAX_LIMIT}. Defaults to ${DEFAULT_LIMIT}.`,
+              description: "Maximum results to return. Capped at 100. Defaults to 50.",
               examples: ["10"],
             },
             offset: {
@@ -215,8 +202,7 @@ export async function streamRoutes(app: FastifyInstance): Promise<void> {
         cursor?: string;
       };
 
-      const limit = parseLimit(query.limit);
-      const offset = parseOffset(query.offset);
+      const { limit, offset } = parsePagination(query);
 
       let cursor: bigint | undefined;
       if (query.cursor !== undefined) {
@@ -268,7 +254,7 @@ export async function streamRoutes(app: FastifyInstance): Promise<void> {
 
       reply.header("Cache-Control", "public, max-age=30");
       return {
-        streams: listResult.streams.map(toView),
+        streams: listResult.streams.map(mapStreamResponse),
         ...(total === undefined ? {} : { total }),
         ...(listResult.nextCursor === undefined ? {} : { nextCursor: listResult.nextCursor }),
         limit,
@@ -421,7 +407,7 @@ export async function streamRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(304).send();
       }
 
-      return toView(stream);
+      return mapStreamResponse(stream);
     },
   );
 }
