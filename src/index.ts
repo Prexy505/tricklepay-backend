@@ -27,8 +27,8 @@ async function main(): Promise<void> {
 
   const app = await buildServer(config);
   await app.register(rootRoutes(config));
-  await app.register(streamRoutes);
-  await app.register(statusRoutes);
+  await app.register(streamRoutes, { summaryCacheTtlMs: config.summaryCacheTtlMs });
+  await app.register(statusRoutes, { startLedger: config.startLedger });
   await app.register(metricsRoutes);
 
   const poller = new Poller(rpcServer, config, logger);
