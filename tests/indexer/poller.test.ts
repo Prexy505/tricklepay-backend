@@ -312,14 +312,28 @@ describe("Poller", () => {
   it("does not record page completion if processing is interrupted midway by an unhandled error", async () => {
     chain.getContractEvents.mockResolvedValue(pageOf(captured.events));
 
-    const prismaModule = await import("../../src/db.js");
+    const eventsModule = await import("../../src/chain/events.js");
     let callCount = 0;
-    vi.spyOn(prismaModule.prisma, "$transaction").mockImplementation(async (cb: any) => {
+    vi.spyOn(eventsModule, "decodeEvent").mockImplementation((raw: any) => {
       callCount++;
       if (callCount === 2) {
         throw new Error("Unhandled DB error mid-page");
       }
-      return cb({});
+      return {
+        id: raw.id ?? "unknown",
+        ledger: raw.ledger ?? 0,
+        closedAt: 0n,
+        txHash: raw.txHash ?? "",
+        kind: "created",
+        streamId: 1n,
+        sender: "A",
+        recipient: "B",
+        token: "C",
+        totalAmount: 100n,
+        startTime: 0n,
+        endTime: 100n,
+        cliffTime: 0n,
+      };
     });
 
     const poller = new Poller(server, config, log);
