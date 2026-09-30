@@ -563,7 +563,14 @@ cannot stall the rest.
 
 ## Contributing
 
-For instructions on setting up your local environment, running required checks (`npm run typecheck`, `npm test`, `npm run build`), and submitting pull requests, see [CONTRIBUTING.md](CONTRIBUTING.md).
+For instructions on setting up your local environment, running required checks (`./scripts/check.sh`), and submitting pull requests, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Before opening a pull request, run the local checks script to ensure everything passes:
+
+```bash
+./scripts/check.sh
+```
+This script runs the typecheck, tests, and build in order. It will exit non-zero on the first failure.
 
 For global contributor guidelines across the organization, refer to the shared [TricklePay Documentation Guide](https://github.com/TricklePay/tricklepay-docs).
 
